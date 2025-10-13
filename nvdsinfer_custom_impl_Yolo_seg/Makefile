@@ -3,6 +3,35 @@ ifeq ($(CUDA_VER),)
 	$(error "CUDA_VER is not set")
 endif
 
+CUDA_VER_MAJOR:= $(word 1,$(subst ., ,$(CUDA_VER)))
+CUDA_VER_MINOR:= $(word 2,$(subst ., ,$(CUDA_VER)))
+CUDA_VER_NUM:= $(CUDA_VER_MAJOR)$(CUDA_VER_MINOR)
+
+CUDA_ARCH:= 53 60 61 62 70 72 75
+ifeq ($(shell expr $(CUDA_VER_NUM) \>= 110),1)
+  CUDA_ARCH+= 80
+endif
+ifeq ($(shell expr $(CUDA_VER_NUM) \>= 111),1)
+  CUDA_ARCH+= 86
+endif
+ifeq ($(shell expr $(CUDA_VER_NUM) \>= 118),1)
+  CUDA_ARCH+= 87 89
+endif
+ifeq ($(shell expr $(CUDA_VER_NUM) \>= 120),1)
+  CUDA_ARCH+= 90
+endif
+ifeq ($(shell expr $(CUDA_VER_NUM) \>= 128),1)
+  CUDA_ARCH+= 100 103 110 120
+endif
+
+GENCODE_FLAGS:= $(foreach a,$(CUDA_ARCH),-gencode arch=compute_$(a),code=sm_$(a) \
+				-gencode arch=compute_$(a),code=compute_$(a))
+
+SM?=
+ifneq ($(SM),)
+	GENCODE_FLAGS:= -gencode arch=compute_$(SM),code=sm_$(SM) -gencode arch=compute_$(SM),code=compute_$(SM)
+endif
+
 CXX:= g++
 NVCC:=/usr/local/cuda-$(CUDA_VER)/bin/nvcc
 
@@ -39,7 +68,7 @@ all: $(TARGET_LIB)
 	$(CXX) -c -o $@ $(CFLAGS) $<
 
 %.o: %.cu $(INCS) Makefile
-	$(NVCC) -c -o $@ --compiler-options '-fPIC' $(CUFLAGS) $<
+	$(NVCC) -c -o $@ $(GENCODE_FLAGS) --compiler-options '-fPIC' $(CUFLAGS) $<
 
 $(TARGET_LIB) : $(OBJS)
 	$(CXX) -o $@ $(OBJS) $(LFLAGS)

@@ -8,6 +8,8 @@
 #include <set>
 #include <memory>
 
+#include <cuda_runtime.h>
+
 #include "NvInfer.h"
 #include "NvInferPlugin.h"
 

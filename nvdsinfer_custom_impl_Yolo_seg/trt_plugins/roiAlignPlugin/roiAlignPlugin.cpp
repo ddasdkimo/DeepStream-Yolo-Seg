@@ -26,8 +26,8 @@ using nvinfer1::plugin::ROIAlignPluginCreator;
 
 namespace
 {
-char const* gRoialignPluginVersion{"1"};
-char const* gRoialignPluginName{"ROIAlignX_TRT"};
+char const* kROIALIGN_PLUGIN_VERSION{"1"};
+char const* kROIALIGN_PLUGIN_NAME{"ROIAlignX_TRT"};
 size_t constexpr kSERIALIZATION_SIZE{sizeof(int32_t) * 5 + sizeof(float) + sizeof(int32_t) * 4};
 } // namespace
 
@@ -49,12 +49,12 @@ ROIAlignPluginCreator::ROIAlignPluginCreator()
 
 char const* ROIAlignPluginCreator::getPluginName() const noexcept
 {
-    return gRoialignPluginName;
+    return kROIALIGN_PLUGIN_NAME;
 }
 
 char const* ROIAlignPluginCreator::getPluginVersion() const noexcept
 {
-    return gRoialignPluginVersion;
+    return kROIALIGN_PLUGIN_VERSION;
 }
 
 PluginFieldCollection const* ROIAlignPluginCreator::getFieldNames() noexcept
@@ -197,12 +197,12 @@ bool ROIAlign::supportsFormatCombination(
 
 char const* ROIAlign::getPluginType() const noexcept
 {
-    return gRoialignPluginName;
+    return kROIALIGN_PLUGIN_NAME;
 }
 
 char const* ROIAlign::getPluginVersion() const noexcept
 {
-    return gRoialignPluginVersion;
+    return kROIALIGN_PLUGIN_VERSION;
 }
 
 IPluginV2DynamicExt* ROIAlign::clone() const noexcept

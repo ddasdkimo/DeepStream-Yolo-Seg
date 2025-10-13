@@ -122,9 +122,8 @@ size_t dataTypeSize(const DataType dtype)
     case DataType::kINT8: return sizeof(char);
     case DataType::kHALF: return sizeof(short);
     case DataType::kFLOAT: return sizeof(float);
-    case DataType::kBF16:
-    case DataType::kINT64: PLUGIN_FAIL("Unsupported data type");
-    default: return 0;
+    default: PLUGIN_FAIL("Unsupported data type");
+    return 0;
     }
 }
 
