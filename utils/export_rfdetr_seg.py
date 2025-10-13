@@ -157,9 +157,10 @@ class RoiAlign(torch.autograd.Function):
 
 
 class DeepStreamOutput(nn.Module):
-    def __init__(self, img_size):
+    def __init__(self, img_size, max_detections):
         super().__init__()
         self.img_size = img_size
+        self.max_detections = max_detections
 
     def forward(self, x):
         boxes = x[0]
@@ -168,17 +169,30 @@ class DeepStreamOutput(nn.Module):
         )
         boxes @= convert_matrix
         boxes *= torch.as_tensor([[*self.img_size]]).flip(1).tile([1, 2]).unsqueeze(1)
-        scores, labels = torch.max(x[1].sigmoid(), dim=-1, keepdim=True)
+        scores = x[1].sigmoid()
         protos, masks, mask_bias = x[2]
 
+        num_classes = scores.shape[2]
         batch_size, num_protos, h_protos, w_protos = protos.shape
-        num_queries = masks.shape[1]
 
-        total_detections = batch_size * num_queries
+        topk_values, topk_indexes = torch.topk(scores.view(batch_size, -1), self.max_detections, dim=1, sorted=False)
 
-        batch_index = torch.ones([batch_size, num_queries], device=boxes.device, dtype=torch.int32) * torch.arange(
-            batch_size, device=boxes.device, dtype=torch.int32
-        ).unsqueeze(1)
+        scores = topk_values.unsqueeze(-1)
+
+        topk_boxes = topk_indexes // num_classes
+        labels = topk_indexes % num_classes
+
+        topk_boxes = topk_boxes.unsqueeze(-1)
+        labels = labels.unsqueeze(-1)
+
+        boxes = torch.gather(boxes, 1, topk_boxes.repeat(1, 1, 4))
+        masks = torch.gather(masks, 1, topk_boxes.repeat(1, 1, num_protos))
+
+        total_detections = batch_size * self.max_detections
+
+        batch_index = torch.ones(
+            [batch_size, self.max_detections], device=boxes.device, dtype=torch.int32
+        ) * torch.arange(batch_size, device=boxes.device, dtype=torch.int32).unsqueeze(1)
         batch_index = batch_index.view(total_detections)
 
         selected_boxes = boxes.view(total_detections, 4)
@@ -189,12 +203,12 @@ class DeepStreamOutput(nn.Module):
         masks_protos = torch.matmul(
             selected_masks.unsqueeze(1), pooled_proto.view(total_detections, num_protos, h_protos * w_protos)
         )
-        masks_protos = masks_protos.view(batch_size, num_queries, h_protos * w_protos) + mask_bias
+        masks_protos = masks_protos.view(batch_size, self.max_detections, h_protos * w_protos) + mask_bias
 
         return torch.cat([boxes, scores, labels.to(boxes.dtype), masks_protos], dim=-1)
 
 
-def rfdetr_seg_export(model_name, weights, nc, img_size, device):
+def rfdetr_seg_export(model_name, weights, nc, img_size, max_detections, device):
     if model_name == "rfdetr-seg-preview":
         model = RFDETRSegPreview(pretrain_weights=weights, resolution=img_size[0], num_classes=nc, device=device.type)
     else:
@@ -205,6 +219,9 @@ def rfdetr_seg_export(model_name, weights, nc, img_size, device):
     model.eval()
     if hasattr(model, "export"):
         model.export()
+    if max_detections > model.num_queries:
+        raise ValueError(
+            f"The `max_detections={max_detections}` is higher than the model `num_queries={model.num_queries}`")
     return model, class_names
 
 
@@ -225,7 +242,9 @@ def main(args):
     print("Opening RF-DETR-Seg model")
 
     device = torch.device("cpu")
-    model, class_names = rfdetr_seg_export(args.model, args.weights, args.classes, args.size, device)
+    model, class_names = rfdetr_seg_export(
+        args.model, args.weights, args.classes, args.size, args.max_detections, device
+    )
 
     if len(class_names.keys()) > 0:
         print("Creating labels.txt file")
@@ -241,7 +260,7 @@ def main(args):
     img_size = args.size * 2 if len(args.size) == 1 else args.size
 
     model = nn.Sequential(
-        model, DeepStreamOutput(img_size)
+        model, DeepStreamOutput(img_size, args.max_detections)
     )
 
     onnx_input_im = torch.zeros(args.batch, 3, *img_size).to(device)
@@ -290,6 +309,9 @@ def parse_args():
     parser.add_argument("--simplify", action="store_true", help="ONNX simplify model")
     parser.add_argument("--dynamic", action="store_true", help="Dynamic batch-size")
     parser.add_argument("--batch", type=int, default=1, help="Static batch-size")
+    parser.add_argument(
+        "--max-detections", type=int, default=100, help="Maximum number of output detections (default 100)"
+    )
     args = parser.parse_args()
     if not os.path.isfile(args.weights):
         raise SystemExit("Invalid weights file")

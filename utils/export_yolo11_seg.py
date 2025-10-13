@@ -237,9 +237,13 @@ def parse_args():
     parser.add_argument("--simplify", action="store_true", help="ONNX simplify model")
     parser.add_argument("--dynamic", action="store_true", help="Dynamic batch-size")
     parser.add_argument("--batch", type=int, default=1, help="Static batch-size")
-    parser.add_argument("--conf-threshold", type=float, default=0.25, help="Minimum detection confidence threshold")
-    parser.add_argument("--iou-threshold", type=float, default=0.45, help="NMS IoU threshold")
-    parser.add_argument("--max-detections", type=int, default=300, help="Maximum number of output detections")
+    parser.add_argument(
+        "--conf-threshold", type=float, default=0.25, help="Minimum detection confidence threshold (default 0.25)"
+    )
+    parser.add_argument("--iou-threshold", type=float, default=0.45, help="NMS IoU threshold (default 0.45)")
+    parser.add_argument(
+        "--max-detections", type=int, default=100, help="Maximum number of output detections (default 100)"
+    )
     args = parser.parse_args()
     if not os.path.isfile(args.weights):
         raise SystemExit("Invalid weights file")
