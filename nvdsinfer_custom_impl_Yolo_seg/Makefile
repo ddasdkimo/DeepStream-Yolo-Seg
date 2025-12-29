@@ -42,7 +42,14 @@ CFLAGS:= -Wall -std=c++17 -shared -fPIC -Wno-error=deprecated-declarations
 CFLAGS+= -I/opt/nvidia/deepstream/deepstream/sources/includes -I/usr/local/cuda-$(CUDA_VER)/include
 CUFLAGS:= -I/opt/nvidia/deepstream/deepstream/sources/includes -I/usr/local/cuda-$(CUDA_VER)/include
 
-LIBS+= -lnvinfer -L/usr/local/cuda-$(CUDA_VER)/lib64 -lcudart -lstdc++fs
+LIBS+= -lnvinfer -lnvonnxparser -L/usr/local/cuda-$(CUDA_VER)/lib64 -lcudart -lstdc++fs
+
+# OpenCV support for INT8 calibration
+# Set OPENCV=1 to enable INT8 calibration support
+ifeq ($(OPENCV),1)
+  CFLAGS+= -DOPENCV $(shell pkg-config --cflags opencv4 2>/dev/null || pkg-config --cflags opencv)
+  LIBS+= $(shell pkg-config --libs opencv4 2>/dev/null || pkg-config --libs opencv)
+endif
 
 LFLAGS:= -shared -Wl,--start-group $(LIBS) -Wl,--end-group
 
